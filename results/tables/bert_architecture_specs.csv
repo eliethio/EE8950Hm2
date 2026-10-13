@@ -1,0 +1,10 @@
+Attribute,Value
+Model Backbone,google-bert/bert-base-uncased
+Total Parameters,109486854
+Trainable Parameters,109486854
+Frozen Parameters,0
+Updated Parameter Groups,"bert, classifier"
+Hidden Size,768
+Number of Layers,12
+Attention Heads,12
+Classification Head,Linear(768 -> 6)

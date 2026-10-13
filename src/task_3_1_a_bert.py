@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import argparse
 import random
@@ -10,6 +11,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, get_linear_schedule_with_warmup
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+# Ensure current directory is on sys.path for robust imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import shared data pipeline and seed setup
 from data_pipeline import load_and_split_trec6, seed_everything, LABEL_NAMES
@@ -262,7 +266,6 @@ def run_smoke_test(model, dataloader, optimizer, device):
 
     loss.backward()
     
-    # Verify non-zero gradients
     grad_norms = [p.grad.norm().item() for p in model.parameters() if p.grad is not None]
     print(f"Non-zero Gradient Check: {len(grad_norms)} parameters received gradients.")
     optimizer.step()
@@ -309,7 +312,6 @@ def main():
     parser.add_argument("--smoke-test", action="store_true", help="Run a quick 1-batch CPU test and exit.")
     args = parser.parse_args()
 
-    # Rule 5: Explicit variable pre-initialization
     history = {
         "epoch": [],
         "train_loss": [],
@@ -318,14 +320,21 @@ def main():
         "val_acc": []
     }
 
-    # Select device (CPU if smoke test requested)
     if args.smoke_test:
         device = torch.device("cpu")
         print("Smoke-test flag activated: Forcing CPU execution.")
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Load data using shared data_pipeline
+    # Add hardware verification logging here:
+    print("=" * 60)
+    print(f"  ACTIVE HARDWARE DEVICE: {device}")
+    if device.type == "cuda":
+        print(f"  GPU DEVICE NAME:      {torch.cuda.get_device_name(0)}")
+        print(f"  AVAILABLE MEMORY:     {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+    else:
+        print("  RUNNING ON CPU")
+    print("=" * 60)
+    
     train_df, val_df, test_df = load_and_split_trec6()
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
@@ -337,19 +346,15 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    # Load BERT classifier model
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_NAME,
         num_labels=NUM_LABELS
     ).to(device)
 
-    # Dynamic Architecture Audit (Rule 1 & Task 3.1.A.3)
     inspect_and_save_architecture(model)
 
-    # Setup Optimizer & Warmup Scheduler
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
-    # Execute Smoke Test if requested by command line flag
     if args.smoke_test:
         run_smoke_test(model, train_loader, optimizer, device)
         return
@@ -379,7 +384,6 @@ def main():
               f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc*100:.2f}% | "
               f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc*100:.2f}% | Val Macro F1: {val_f1:.4f}")
 
-        # Save best validation checkpoint (Section 5 Requirement)
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), os.path.join(CHECKPOINTS_DIR, "bert_best_model.pt"))
@@ -387,20 +391,16 @@ def main():
     train_time_sec = time.time() - start_time
     print(f"\nTraining Complete in {train_time_sec:.2f} seconds ({train_time_sec/60:.2f} minutes).")
 
-    # Save training history metrics & plot curves
     df_history = pd.DataFrame(history)
     df_history.to_csv(os.path.join(TABLES_DIR, "bert_training_history.csv"), index=False)
     plot_learning_curves(df_history)
 
-    # Load best checkpoint for test evaluation
     model.load_state_dict(torch.load(os.path.join(CHECKPOINTS_DIR, "bert_best_model.pt")))
 
-    # Perform Single Example Inspection (Task 3.1.A.3)
     sample_text = test_df['text'].iloc[0]
     sample_label = test_df['label'].iloc[0]
     inspect_single_example(model, tokenizer, sample_text, sample_label, device)
 
-    # Final Evaluation on Test Set
     print("Evaluating Best BERT Model on Official Test Set...")
     test_loss, test_acc, test_p, test_r, test_f1, p_class, r_class, f1_class, y_pred, y_true = evaluate(model, test_loader, device)
 
@@ -416,7 +416,6 @@ def main():
     print(f"  Training Time:     {train_time_sec:.2f} sec")
     print("="*60)
 
-    # Class-wise metrics table
     class_metrics = []
     for idx, name in enumerate(LABEL_NAMES):
         class_metrics.append({
@@ -429,7 +428,6 @@ def main():
     df_class_metrics = pd.DataFrame(class_metrics)
     df_class_metrics.to_csv(os.path.join(TABLES_DIR, "bert_per_class_results.csv"), index=False)
 
-    # Table 1 Summary Row export
     table1_entry = {
         "Model": "BERT fine-tuned",
         "Best val. acc. (%)": round(best_val_acc * 100, 2),

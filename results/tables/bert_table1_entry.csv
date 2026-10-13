@@ -1,0 +1,2 @@
+Model,Best val. acc. (%),Test acc. (%),Macro-F1 (%),Train time (s)
+BERT fine-tuned,94.14,96.6,96.16,394.13
