@@ -1,0 +1,33 @@
+===========================================================================
+      TASK 3.1.B: 5-EXAMPLE GENERATION INSPECTION AUDIT
+===========================================================================
+Sample [1/5]:
+  Input Prompt:      'classify question: How far is it from Denver to Aspen?'
+  Target String:     'number' (Class ID: 5)
+  Generated Output:  'number' -> Cleaned: 'number'
+  Mapped Class ID:   5 [EXACT MATCH]
+---------------------------------------------------------------------------
+Sample [2/5]:
+  Input Prompt:      'classify question: What county is Modesto, California in?'
+  Target String:     'location' (Class ID: 4)
+  Generated Output:  'location' -> Cleaned: 'location'
+  Mapped Class ID:   4 [EXACT MATCH]
+---------------------------------------------------------------------------
+Sample [3/5]:
+  Input Prompt:      'classify question: Who was Galileo?'
+  Target String:     'human' (Class ID: 3)
+  Generated Output:  'human' -> Cleaned: 'human'
+  Mapped Class ID:   3 [EXACT MATCH]
+---------------------------------------------------------------------------
+Sample [4/5]:
+  Input Prompt:      'classify question: What is an atom?'
+  Target String:     'description' (Class ID: 2)
+  Generated Output:  'description' -> Cleaned: 'description'
+  Mapped Class ID:   2 [EXACT MATCH]
+---------------------------------------------------------------------------
+Sample [5/5]:
+  Input Prompt:      'classify question: When did Hawaii become a state?'
+  Target String:     'number' (Class ID: 5)
+  Generated Output:  'number' -> Cleaned: 'number'
+  Mapped Class ID:   5 [EXACT MATCH]
+---------------------------------------------------------------------------

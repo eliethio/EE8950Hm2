@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, get_linear_schedu
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, classification_report
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 from data_pipeline import load_and_split_trec6, seed_everything, LABEL_MAPPING, LABEL_NAMES
 
@@ -135,6 +135,84 @@ def evaluate_t5(model, dataloader, tokenizer, device, max_new_tokens=5):
     return avg_loss, acc, precision, recall, f1, invalid_rate, generated_texts, all_preds_id, all_labels_id
 
 # ==============================================================================
+# Task 3.1.B: 5-Example Generation Inspection (Print & Save)
+# ==============================================================================
+def inspect_and_save_5_examples(model, test_loader, tokenizer, device, max_new_tokens=5):
+    """
+    TASK 3.1.B: 5-EXAMPLE GENERATION INSPECTION
+    Extracts 5 test samples, prints raw & processed outputs to stdout,
+    and saves audit logs to TXT and CSV formats in results/tables/.
+    """
+    model.eval()
+    batch = next(iter(test_loader))
+    
+    input_ids = batch['input_ids'][:5].to(device)
+    attention_mask = batch['attention_mask'][:5].to(device)
+    target_strs = batch['target_str'][:5]
+    label_ids = batch['label_id'][:5].numpy()
+
+    with torch.no_grad():
+        gen_ids = model.generate(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=max_new_tokens,
+            do_sample=False
+        )
+
+    gen_strs = tokenizer.batch_decode(gen_ids, skip_special_tokens=True)
+    prompt_strs = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+
+    records = []
+    log_lines = []
+    
+    log_lines.append("=" * 75)
+    log_lines.append("      TASK 3.1.B: 5-EXAMPLE GENERATION INSPECTION AUDIT")
+    log_lines.append("=" * 75)
+
+    for i in range(5):
+        clean_gen = gen_strs[i].lower().strip()
+        matched_id = TARGET_STR_TO_ID.get(clean_gen, -1)
+        status = "EXACT MATCH" if matched_id == label_ids[i] else "MISMATCH / INVALID"
+        
+        sample_log = [
+            f"Sample [{i+1}/5]:",
+            f"  Input Prompt:      '{prompt_strs[i]}'",
+            f"  Target String:     '{target_strs[i]}' (Class ID: {label_ids[i]})",
+            f"  Generated Output:  '{gen_strs[i]}' -> Cleaned: '{clean_gen}'",
+            f"  Mapped Class ID:   {matched_id} [{status}]",
+            "-" * 75
+        ]
+        log_lines.extend(sample_log)
+
+        records.append({
+            "Sample_Idx": i + 1,
+            "Input_Prompt": prompt_strs[i],
+            "Target_String": target_strs[i],
+            "Target_Class_ID": label_ids[i],
+            "Raw_Generated_Output": gen_strs[i],
+            "Cleaned_Generated_Output": clean_gen,
+            "Mapped_Class_ID": matched_id,
+            "Status": status
+        })
+
+    # 1. Print to Stdout
+    full_log_text = "\n".join(log_lines)
+    print("\n" + full_log_text, flush=True)
+
+    # 2. Save to TXT File
+    txt_path = "results/tables/t5_5_examples_inspection.txt"
+    with open(txt_path, "w") as f:
+        f.write(full_log_text + "\n")
+
+    # 3. Save to CSV File
+    csv_path = "results/tables/t5_5_examples_inspection.csv"
+    df_inspection = pd.DataFrame(records)
+    df_inspection.to_csv(csv_path, index=False)
+
+    print(f"Saved 5-example inspection audit text to: {txt_path}", flush=True)
+    print(f"Saved 5-example inspection audit CSV to:  {csv_path}", flush=True)
+
+# ==============================================================================
 # Main Pipeline
 # ==============================================================================
 def main():
@@ -257,27 +335,28 @@ def main():
         history['val_invalid_rate'].append(val_invalid)
 
         print(f"Epoch {epoch+1}/{args.epochs} | Train Loss: {avg_train_loss:.4g} | Val Loss: {val_loss:.4g} | "
-              f"Val Acc: {val_acc*100:.4g}% | Val Macro F1: {val_f1:.4g} | Val Invalid Rate: {val_invalid:.4g}%", flush=True)
+              f"Val Acc: {val_acc*100:.2f}% | Val Macro F1: {val_f1*100:.2f}% | Val Invalid Rate: {val_invalid:.2f}%", flush=True)
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             torch.save(model.state_dict(), "checkpoints/t5_best_model.pt")
 
     total_time = time.time() - start_time
-    print(f"\nTraining Complete in {total_time:.4g} seconds ({total_time/60:.4g} minutes).", flush=True)
+    print(f"\nTraining Complete in {total_time:.2f} seconds ({total_time/60:.2f} minutes).", flush=True)
 
+    # Plot Learning Curves
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
     epochs_range = range(1, args.epochs + 1)
 
     ax1.plot(epochs_range, history['train_loss'], 'b-o', label='Train Loss')
     ax1.plot(epochs_range, history['val_loss'], 'r-s', label='Val Loss')
-    ax1.set_title('T5 Training & Validation Loss')
+    ax1.set_title('T5 Loss Curves')
     ax1.set_xlabel('Epochs')
     ax1.set_ylabel('Loss')
     ax1.legend()
     ax1.grid(True)
 
-    ax2.plot(epochs_range, [acc * 100 for acc in history['val_acc']], 'r-s', label='Val Acc (%)')
+    ax2.plot(epochs_range, [acc * 100 for acc in history['val_acc']], 'r-s', label='Val Generation Acc (%)')
     ax2.set_title('T5 Validation Generation Accuracy')
     ax2.set_xlabel('Epochs')
     ax2.set_ylabel('Accuracy (%)')
@@ -288,6 +367,7 @@ def main():
     plt.savefig("results/figures/t5_learning_curves.png", dpi=300)
     plt.close()
 
+    # Load best checkpoint and evaluate on test set
     model.load_state_dict(torch.load("checkpoints/t5_best_model.pt"))
     test_loss, test_acc, test_prec, test_rec, test_f1, test_invalid, gen_texts, test_preds, test_labels = evaluate_t5(
         model, test_loader, tokenizer, device, max_new_tokens=args.max_target_len
@@ -296,49 +376,28 @@ def main():
     print("\n" + "=" * 60, flush=True)
     print("         T5 FINAL TEST SET RESULTS", flush=True)
     print("=" * 60, flush=True)
-    print(f"  Best Val Accuracy: {best_val_acc*100:.4g}%", flush=True)
+    print(f"  Best Val Accuracy: {best_val_acc*100:.2f}%", flush=True)
     print(f"  Test Loss:         {test_loss:.4g}", flush=True)
-    print(f"  Test Accuracy:     {test_acc*100:.4g}%", flush=True)
-    print(f"  Macro Precision:   {test_prec:.4g}", flush=True)
-    print(f"  Macro Recall:      {test_rec:.4g}", flush=True)
-    print(f"  Macro F1-Score:    {test_f1:.4g}", flush=True)
-    print(f"  Invalid Output Rate:{test_invalid:.4g}%", flush=True)
-    print(f"  Training Time:     {total_time:.4g} sec", flush=True)
+    print(f"  Test Accuracy:     {test_acc*100:.2f}%", flush=True)
+    print(f"  Macro Precision:   {test_prec*100:.2f}%", flush=True)
+    print(f"  Macro Recall:      {test_rec*100:.2f}%", flush=True)
+    print(f"  Macro F1-Score:    {test_f1*100:.2f}%", flush=True)
+    print(f"  Invalid Output Rate:{test_invalid:.2f}%", flush=True)
+    print(f"  Training Time:     {total_time:.2f} sec", flush=True)
     print("=" * 60, flush=True)
 
-    examples_output = ["============================================================",
-                       "      TASK 3.1.B 5-EXAMPLE GENERATION INSPECTION",
-                       "============================================================"]
-    for i in range(min(5, len(test_df))):
-        raw_text = test_df.iloc[i]['text']
-        gt_id = test_df.iloc[i]['label']
-        gt_str = LABEL_MAPPING[gt_id]["t5_target"]
-        gen_str = gen_texts[i]
-        
-        examples_output.append(
-            f"Example {i+1}:\n"
-            f"  Input Question:   \"{raw_text}\"\n"
-            f"  Generated Text:   \"{gen_str}\"\n"
-            f"  Ground-Truth:     \"{gt_str}\" ({LABEL_NAMES[gt_id]})\n"
-            f"  Exact Match:      {'YES' if gen_str == gt_str else 'NO'}\n"
-        )
-    examples_text = "\n".join(examples_output)
-    print("\n" + examples_text, flush=True)
-
-    with open("results/tables/t5_examples_inspection.txt", "w") as f:
-        f.write(examples_text)
-
+    # Save CSV aligned with Task 3.1.A dictionary format and rounding rules
     t5_table_df = pd.DataFrame([{
-        "Model": "T5-small",
-        "Test Loss": test_loss,
-        "Test Accuracy (%)": test_acc * 100,
-        "Macro Precision": test_prec,
-        "Macro Recall": test_rec,
-        "Macro F1": test_f1,
-        "Invalid Rate (%)": test_invalid,
-        "Training Time (s)": total_time
+        "Model": "T5 fine-tuned",
+        "Best val. acc. (%)": round(best_val_acc * 100, 2),
+        "Test acc. (%)": round(test_acc * 100, 2),
+        "Macro-F1 (%)": round(test_f1 * 100, 2),
+        "Train time (s)": round(total_time, 2)
     }])
     t5_table_df.to_csv("results/tables/t5_table_entry.csv", index=False)
+
+    # Execute and save 5-example generation inspection
+    inspect_and_save_5_examples(model, test_loader, tokenizer, device, max_new_tokens=args.max_target_len)
 
 if __name__ == "__main__":
     main()

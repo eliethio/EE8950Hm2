@@ -1,2 +1,2 @@
-Model,Test Loss,Test Accuracy (%),Macro Precision,Macro Recall,Macro F1,Invalid Rate (%),Training Time (s)
-T5-small,0.08906159882400289,96.6,0.9731266715185516,0.9702248631999755,0.9713637000696115,0.0,182.4958734512329
+Model,Best val. acc. (%),Test acc. (%),Macro-F1 (%),Train time (s)
+T5 fine-tuned,93.77,97.2,96.75,193.04

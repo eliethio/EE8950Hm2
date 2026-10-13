@@ -1,0 +1,6 @@
+Sample_Idx,Input_Prompt,Target_String,Target_Class_ID,Raw_Generated_Output,Cleaned_Generated_Output,Mapped_Class_ID,Status
+1,classify question: How far is it from Denver to Aspen?,number,5,number,number,5,EXACT MATCH
+2,"classify question: What county is Modesto, California in?",location,4,location,location,4,EXACT MATCH
+3,classify question: Who was Galileo?,human,3,human,human,3,EXACT MATCH
+4,classify question: What is an atom?,description,2,description,description,2,EXACT MATCH
+5,classify question: When did Hawaii become a state?,number,5,number,number,5,EXACT MATCH
