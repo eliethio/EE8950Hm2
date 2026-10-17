@@ -19,7 +19,74 @@ def parse_args():
     parser.add_argument("--extract-batch-size", type=int, default=64, help="Batch size for feature extraction")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate for AdamW")
     parser.add_argument("--data-dir", type=str, default="./data", help="CIFAR data root directory")
+    parser.add_argument("--smoke-test", action="store_true", help="Run quick 5-second sanity audit on mock data")
     return parser.parse_args()
+
+def run_smoke_test(device):
+    """
+    Embedded Smoke Test Audit: Verifies model loading, frozen parameter status,
+    feature extraction dimensions, and head gradient flow in under 5 seconds.
+    """
+    print("=" * 70)
+    print("           TASK 3.3 PRETRAINED ViT SMOKE TEST AUDIT")
+    print("=" * 70)
+    print(f"  Torchvision Version: {torchvision.__version__}")
+    print(f"  Active Device:       {device}")
+
+    # 1. Model Loading & Weights
+    print("\n[CHECK 1] Model Loading & Weights Verification...")
+    weights = ViT_B_16_Weights.IMAGENET1K_V1
+    transform = weights.transforms()
+    model = vit_b_16(weights=weights).to(device)
+    print("  ✓ ViT-B/16 loaded cleanly with IMAGENET1K_V1 weights.")
+
+    # 2. Freeze Check
+    print("\n[CHECK 2] Backbone Parameter Freezing Audit...")
+    for p in model.parameters():
+        p.requires_grad = False
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"  ✓ Backbone Trainable Parameters: {trainable_params} (Expected: 0)")
+    assert trainable_params == 0, "Backbone parameters are not frozen!"
+
+    # 3. Feature Shape Verification
+    print("\n[CHECK 3] Mock Feature Extraction Shape Audit...")
+    model.eval()
+    mock_imgs = torch.randn(4, 3, 224, 224).to(device)
+    with torch.no_grad():
+        x = model._process_input(mock_imgs)
+        n = x.shape[0]
+        batch_class_token = model.class_token.expand(n, -1, -1)
+        x = torch.cat([batch_class_token, x], dim=1)
+        x = model.encoder(x)
+        cls_features = x[:, 0]
+
+    print(f"  Mock Input:       {list(mock_imgs.shape)}")
+    print(f"  Extracted Output: {list(cls_features.shape)} (Expected: [4, 768])")
+    assert cls_features.shape == (4, 768), "Feature shape mismatch!"
+
+    # 4. Head Training Pass
+    print("\n[CHECK 4] Linear Head Gradient Flow Test...")
+    in_features = model.heads.head.in_features
+    head_cifar10 = nn.Linear(in_features, 10).to(device)
+    optimizer = torch.optim.AdamW(head_cifar10.parameters(), lr=1e-3)
+    criterion = nn.CrossEntropyLoss()
+
+    mock_feats = torch.randn(8, 768).to(device)
+    mock_labels = torch.randint(0, 10, (8,)).to(device)
+
+    optimizer.zero_grad()
+    logits = head_cifar10(mock_feats)
+    loss = criterion(logits, mock_labels)
+    loss.backward()
+    optimizer.step()
+
+    head_grads = all(p.grad is not None and torch.isfinite(p.grad).all() for p in head_cifar10.parameters())
+    print(f"  Head Gradient Flow Check: {'✓ PASSED' if head_grads else 'FAILED'}")
+    assert head_grads, "Gradients failed to flow through linear head!"
+
+    print("\n" + "=" * 70)
+    print("      ✓ ALL TASK 3.3 SMOKE TESTS PASSED SUCCESSFULLY!")
+    print("=" * 70 + "\n")
 
 def extract_vit_features(model, dataloader, device):
     """
@@ -32,15 +99,11 @@ def extract_vit_features(model, dataloader, device):
     with torch.no_grad():
         for imgs, labels in dataloader:
             imgs = imgs.to(device)
-            # Forward pass through backbone up to heads
-            # torchvision ViT forward: _process_input -> encoder -> heads
             x = model._process_input(imgs)
             n = x.shape[0]
-            # Expand class token
             batch_class_token = model.class_token.expand(n, -1, -1)
             x = torch.cat([batch_class_token, x], dim=1)
             x = model.encoder(x)
-            # Extract [CLS] token representation (index 0)
             cls_features = x[:, 0]
             
             all_features.append(cls_features.cpu())
@@ -160,10 +223,17 @@ def main():
     os.makedirs("results/figures", exist_ok=True)
     os.makedirs("checkpoints", exist_ok=True)
 
+    # Trigger smoke test if requested
+    if args.smoke_test:
+        run_smoke_test(device)
+        return
+
     print("=" * 70)
     print(f"  Torchvision Version:        {torchvision.__version__}")
     print(f"  Selected Weight Enum:       ViT_B_16_Weights.IMAGENET1K_V1")
     print(f"  Active Device:              {device}")
+    if torch.cuda.is_available():
+        print(f"  Device Name:                {torch.cuda.get_device_name(0)}")
     print("=" * 70)
 
     # 1. Load Pretrained Model & Transforms
@@ -178,15 +248,12 @@ def main():
     for param in model.parameters():
         param.requires_grad = False
 
-    # Calculate Total vs Trainable Parameters
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params_before = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"\nTotal Model Parameters:       {total_params:,}")
     print(f"Trainable Parameters (Frozen): {trainable_params_before}")
 
     results_summary = []
-
-    # Process CIFAR-10 and CIFAR-100
     datasets = [("CIFAR-10", CIFAR10, 10), ("CIFAR-100", CIFAR100, 100)]
 
     for dataset_name, dataset_cls, num_classes in datasets:
@@ -194,11 +261,9 @@ def main():
         print(f"              PROCESSING DATASET: {dataset_name}")
         print("#" * 70)
 
-        # Load Datasets
         full_train = dataset_cls(root=args.data_dir, train=True, download=True, transform=transform)
         test_ds = dataset_cls(root=args.data_dir, train=False, download=True, transform=transform)
 
-        # 90/10 Train/Val Split (45,000 / 5,000)
         generator = torch.Generator().manual_seed(42)
         train_ds, val_ds = torch.utils.data.random_split(full_train, [45000, 5000], generator=generator)
 
@@ -206,23 +271,18 @@ def main():
         val_loader = DataLoader(val_ds, batch_size=args.extract_batch_size, shuffle=False, num_workers=2)
         test_loader = DataLoader(test_ds, batch_size=args.extract_batch_size, shuffle=False, num_workers=2)
 
-        # Feature Extraction Phase
         print(f"\nExtracting and caching frozen [CLS] features for {dataset_name}...")
         start_extract_time = time.time()
         
         train_feats, train_labels = extract_vit_features(model, train_loader, device)
         val_feats, val_labels = extract_vit_features(model, val_loader, device)
         
-        # Calculate training-pipeline feature extraction cost (train + val)
         train_val_extract_time = time.time() - start_extract_time
-
-        # Extract test features separately (excluded from training time)
         test_feats, test_labels = extract_vit_features(model, test_loader, device)
 
         print(f"Feature Extraction Completed in {train_val_extract_time:.2f}s (Train + Val)")
         print(f"Features Shape: Train {train_feats.shape}, Val {val_feats.shape}, Test {test_feats.shape}")
 
-        # Train Head
         res = train_and_eval_head(
             dataset_name, num_classes, in_features,
             train_feats, train_labels, val_feats, val_labels,
@@ -239,7 +299,6 @@ def main():
         print(f"  Test Accuracy:                       {res['test_acc']:.2f}%")
         print(f"  Test Macro-F1:                       {res['test_f1']:.2f}%")
 
-        # Plot Learning Curves
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
         epochs_range = range(1, args.epochs + 1)
 
