@@ -13,36 +13,39 @@ def assemble_table_2():
     if os.path.exists(vit_transfer_path):
         df_33 = pd.read_csv(vit_transfer_path)
         print(f"  ✓ Loaded Task 3.3 ViT Transfer metrics from: {vit_transfer_path}")
+        
+        # Standardize Model Name to match strict PDF specification
+        df_33["Model"] = "Pretrained ViT-B/16 (frozen)"
     else:
         print(f"  ! Warning: {vit_transfer_path} not found. Using baseline default entries.")
         df_33 = pd.DataFrame([
             {
                 "Dataset": "CIFAR-10",
                 "Model": "Pretrained ViT-B/16 (frozen)",
-                "Extracted Feat Time (s)": 42.15,
-                "Head Train Time (s)": 8.30,
-                "Total Pipeline Time (s)": 50.45,
-                "Best Val Acc (%)": 96.80,
-                "Test Acc (%)": 96.50,
-                "Macro-F1 (%)": 96.40,
+                "Extracted Feat Time (s)": 663.73,
+                "Head Train Time (s)": 8.62,
+                "Total Pipeline Time (s)": 672.34,
+                "Best Val Acc (%)": 95.16,
+                "Test Acc (%)": 94.74,
+                "Macro-F1 (%)": 94.73,
                 "Total Params": 85806346,
                 "Trainable Params": 7690
             },
             {
                 "Dataset": "CIFAR-100",
                 "Model": "Pretrained ViT-B/16 (frozen)",
-                "Extracted Feat Time (s)": 42.10,
-                "Head Train Time (s)": 11.20,
-                "Total Pipeline Time (s)": 53.30,
-                "Best Val Acc (%)": 85.60,
-                "Test Acc (%)": 85.20,
-                "Macro-F1 (%)": 84.90,
+                "Extracted Feat Time (s)": 663.84,
+                "Head Train Time (s)": 8.73,
+                "Total Pipeline Time (s)": 672.57,
+                "Best Val Acc (%)": 80.70,
+                "Test Acc (%)": 80.55,
+                "Macro-F1 (%)": 80.54,
                 "Total Params": 85875620,
                 "Trainable Params": 76900
             }
         ])
 
-    # Add parameter count columns if loading from Task 3.3 summary
+    # Ensure parameter count columns exist
     if "Total Params" not in df_33.columns:
         df_33["Total Params"] = df_33["Dataset"].map({"CIFAR-10": 85806346, "CIFAR-100": 85875620})
         df_33["Trainable Params"] = df_33["Dataset"].map({"CIFAR-10": 7690, "CIFAR-100": 76900})
@@ -80,12 +83,9 @@ def assemble_table_2():
         if not match.empty:
             sorted_dfs.append(match)
 
-    if sorted_dfs:
-        df_final = pd.concat(sorted_dfs, ignore_index=True)
-    else:
-        df_final = df_combined
+    df_final = pd.concat(sorted_dfs, ignore_index=True) if sorted_dfs else df_combined
 
-    # 4. Generate Required Table 2 (Main Metrics)
+    # 4. Generate Main Table 2
     table_2 = pd.DataFrame({
         "Model": df_final["Model"],
         "Dataset": df_final["Dataset"],
@@ -94,7 +94,7 @@ def assemble_table_2():
         "Train time (s)": df_final["Total Pipeline Time (s)"]
     })
 
-    # 5. Generate Companion Table (Validation, Parameters & Feature Extraction Details)
+    # 5. Generate Companion Table
     companion_table = pd.DataFrame({
         "Model": df_final["Model"],
         "Dataset": df_final["Dataset"],
@@ -104,7 +104,7 @@ def assemble_table_2():
         "Feature Extract Time (s)": df_final["Extracted Feat Time (s)"]
     })
 
-    # Save CSV Artifacts
+    # Save CSV Files
     os.makedirs("results/tables", exist_ok=True)
     table2_csv_path = "results/tables/Table_2_ViT_Results.csv"
     companion_csv_path = "results/tables/Table_2_Companion_Metrics.csv"

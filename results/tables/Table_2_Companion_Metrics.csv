@@ -1,0 +1,7 @@
+Model,Dataset,Best Val Acc (%),Total Params,Trainable Params,Feature Extract Time (s)
+Pretrained ViT-B/16 (frozen),CIFAR-10,95.16,"85,806,346","7,690",663.73
+Pretrained ViT-B/16 (frozen),CIFAR-100,80.7,"85,875,620","76,900",663.84
+Custom ViT: 1 block,CIFAR-10,0.0,"602,378","602,378",N/A
+Custom ViT: 2 blocks,CIFAR-10,0.0,"1,153,802","1,153,802",N/A
+Custom ViT: 1 block,CIFAR-100,0.0,"671,652","671,652",N/A
+Custom ViT: 2 blocks,CIFAR-100,0.0,"1,223,076","1,223,076",N/A

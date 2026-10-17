@@ -1,0 +1,5 @@
+Dataset,Model,Extracted Feat Time (s),Head Train Time (s),Total Pipeline Time (s),Best Val Acc (%),Test Acc (%),Macro-F1 (%),Total Params,Trainable Params
+CIFAR-10,Custom ViT: 1 block,N/A,N/A,175.0,56.4,55.16,54.97,214538,214538
+CIFAR-10,Custom ViT: 2 blocks,N/A,N/A,186.63,62.18,62.44,62.54,412810,412810
+CIFAR-100,Custom ViT: 1 block,N/A,N/A,174.55,30.7,30.23,29.33,226148,226148
+CIFAR-100,Custom ViT: 2 blocks,N/A,N/A,190.94,34.32,34.11,33.4,424420,424420

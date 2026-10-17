@@ -1,0 +1,7 @@
+Model,Dataset,Test acc. (%),Macro-F1 (%),Train time (s)
+Pretrained ViT-B/16 (frozen),CIFAR-10,94.74,94.73,672.34
+Pretrained ViT-B/16 (frozen),CIFAR-100,80.55,80.54,672.57
+Custom ViT: 1 block,CIFAR-10,0.0,0.0,0.0
+Custom ViT: 2 blocks,CIFAR-10,0.0,0.0,0.0
+Custom ViT: 1 block,CIFAR-100,0.0,0.0,0.0
+Custom ViT: 2 blocks,CIFAR-100,0.0,0.0,0.0
