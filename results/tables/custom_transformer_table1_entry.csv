@@ -1,2 +1,2 @@
 Model,Best val. acc. (%),Test acc. (%),Macro-F1 (%),Train time (s)
-Custom Transformer,76.37,80.4,79.66,21.27
+Custom Transformer,76.37,80.4,79.66,19.81

@@ -1,4 +1,4 @@
 Model,Best val. acc.,Test acc.,Macro-F1,Train time
 BERT fine-tuned,94.14,96.6,96.16,394.1
 T5 fine-tuned,93.77,97.2,96.75,193
-Custom Transformer,76.37,80.4,79.66,21.27
+Custom Transformer,76.37,80.4,79.66,19.81
